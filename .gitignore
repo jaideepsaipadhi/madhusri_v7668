@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+*.log
+dreamplace_ibm/
+final_placer_runs/
+macro_place.egg-info/
