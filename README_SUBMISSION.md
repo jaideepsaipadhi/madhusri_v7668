@@ -39,3 +39,19 @@ The DREAMPlace Python environment must include:
 The intended evaluation command is:
 
     uv run evaluate submissions/final_placer/placer.py --all
+
+## DREAMPlace dependency pin
+
+DREAMPlace must run with NumPy 1.x. NumPy 2.x removes `np.string_`, which causes this DREAMPlace version to fail while loading Bookshelf benchmarks.
+
+Install DREAMPlace Python dependencies with:
+
+    python -m pip install -r requirements-dreamplace.txt
+
+The important pin is:
+
+    numpy<2
+
+If installing `ncg_optimizer`, install it without letting it upgrade Torch:
+
+    python -m pip install ncg_optimizer --no-deps
