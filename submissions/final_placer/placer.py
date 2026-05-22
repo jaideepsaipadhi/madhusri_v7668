@@ -1335,125 +1335,96 @@ def select_three_finalists(rows):
 
 
 
+
 def quick_gpu_zero_overlap_repair(placement, benchmark, plc):
     """
-    Quick GPU-only repair path.
+    Fast finalist-stage GPU-only overlap repair.
 
-    This restores the old behavior:
-      near-valid candidate
-      -> GPU repulsion
-      -> official compute_proxy_cost
-      -> if overlap_count == 0, accept immediately
-
-    It does NOT change the initial DREAMPlace fast_sweep settings.
-    It only runs after finalist selection.
+    Important behavior:
+      - Try the known-good DREAMPlace GPU repulsion call once.
+      - If it reaches zero overlaps, accept it immediately.
+      - If it improves but does not reach zero, do NOT accept it here; let the
+        old DREAMPlace final legalizer continue with GPU repulsion -> pairwise
+        polish -> shelf fallback.
+      - Avoid older fallback attempts that expect benchmark.device and throw:
+        AttributeError("'Benchmark' object has no attribute 'device'")
     """
-    import os
+    from macro_place.objective import compute_proxy_cost
 
-    start_costs = compute_proxy_cost(placement, benchmark, plc)
-    start_overlaps = int(start_costs.get("overlap_count", 10**9))
-    start_proxy = float(start_costs["proxy_cost"])
+    def score(place):
+        costs = compute_proxy_cost(place, benchmark, plc)
+        proxy = float(costs.get("proxy_cost", costs.get("proxy", 1e99)))
+        overlaps = int(costs.get("overlap_count", costs.get("overlaps", 10**9)))
+        return costs, proxy, overlaps
 
-    max_start_overlaps = int(os.environ.get("FINAL_QUICK_GPU_MAX_START_OVERLAPS", "64"))
+    try:
+        start_costs, start_proxy, start_overlaps = score(placement)
+    except Exception as e:
+        print(f"[quick-gpu-zero] could not score start placement: {e!r}", flush=True)
+        return placement, None, False
 
+    max_start = int(os.environ.get("FINAL_QUICK_GPU_ZERO_MAX_START_OVERLAPS", "64"))
     print(
-        f"[quick-gpu-zero] start proxy={start_proxy:.6f} overlaps={start_overlaps} "
-        f"max_start_overlaps={max_start_overlaps}",
+        f"[quick-gpu-zero] start proxy={start_proxy:.6f} "
+        f"overlaps={start_overlaps} max_start_overlaps={max_start}",
         flush=True,
     )
 
-    if start_overlaps <= 0:
-        print("[quick-gpu-zero] already valid; accepting input", flush=True)
+    if start_overlaps == 0:
+        print("[quick-gpu-zero] already zero overlaps", flush=True)
         return placement, start_costs, True
 
-    if start_overlaps > max_start_overlaps:
-        print("[quick-gpu-zero] too many overlaps for quick path; skipping", flush=True)
+    if start_overlaps > max_start:
+        print("[quick-gpu-zero] skipped; too many starting overlaps", flush=True)
         return placement, start_costs, False
-
-    mod = load_dreamplace_placer_module()
-
-    # Try old GPU-only legalizer functions first.
-    candidate_names = [
-        "legalize_hard_macros_gpu_repulsion",
-        "gpu_repulsion_legalize_hard_macros",
-        "fast_sweep_gpu_repulsion",
-        "legalize_gpu_repulsion",
-    ]
-
-    old_env = {
-        "GPU_REPULSION_MARGIN": os.environ.get("GPU_REPULSION_MARGIN"),
-        "GPU_REPULSION_ITERS": os.environ.get("GPU_REPULSION_ITERS"),
-        "FAST_SWEEP_GPU_REPULSE_ITERS": os.environ.get("FAST_SWEEP_GPU_REPULSE_ITERS"),
-    }
-
-    # Match the old quick settings you remembered.
-    os.environ.setdefault("GPU_REPULSION_MARGIN", "0.0001")
-    os.environ.setdefault("GPU_REPULSION_ITERS", "2000")
-    os.environ.setdefault("FAST_SWEEP_GPU_REPULSE_ITERS", "2000")
 
     try:
-        for name in candidate_names:
-            fn = getattr(mod, name, None)
-            if not callable(fn):
-                continue
-
-            print(f"[quick-gpu-zero] trying {name}", flush=True)
-
-            attempts = [
-                lambda: fn(placement, benchmark),
-                lambda: fn(benchmark, placement),
-                lambda: fn(placement, benchmark, plc),
-                lambda: fn(benchmark, plc, placement),
-            ]
-
-            for call in attempts:
-                try:
-                    out = call()
-                    if isinstance(out, tuple):
-                        out = out[0]
-                    if out is None:
-                        continue
-
-                    if hasattr(out, "detach"):
-                        cand = out.detach().cpu().float()
-                    else:
-                        cand = out
-
-                    costs = compute_proxy_cost(cand, benchmark, plc)
-                    overlaps = int(costs.get("overlap_count", 10**9))
-                    proxy = float(costs["proxy_cost"])
-
-                    print(
-                        f"[quick-gpu-zero] {name} result proxy={proxy:.6f} overlaps={overlaps}",
-                        flush=True,
-                    )
-
-                    if overlaps == 0:
-                        print("[quick-gpu-zero] ACCEPT_ZERO_OVERLAP", flush=True)
-                        return cand, costs, True
-
-                    # If it did not legalize but improved proxy and overlap, keep it as optional fallback.
-                    if overlaps < start_overlaps and proxy <= start_proxy + 1e-6:
-                        print("[quick-gpu-zero] improved but not valid; keeping as fallback candidate", flush=True)
-                        placement, start_costs = cand, costs
-                        start_overlaps, start_proxy = overlaps, proxy
-
-                except TypeError:
-                    continue
-                except Exception as e:
-                    print(f"[quick-gpu-zero] {name} attempt failed: {e!r}", flush=True)
-
-        print("[quick-gpu-zero] no GPU-only zero-overlap success", flush=True)
+        mod = load_dreamplace_placer_module()
+    except Exception as e:
+        print(f"[quick-gpu-zero] could not load DREAMPlace placer module: {e!r}", flush=True)
         return placement, start_costs, False
 
-    finally:
-        for k, v in old_env.items():
-            if v is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = v
+    fn = getattr(mod, "legalize_hard_macros_gpu_repulsion", None)
+    if fn is None:
+        print("[quick-gpu-zero] legalize_hard_macros_gpu_repulsion missing", flush=True)
+        return placement, start_costs, False
 
+    print("[quick-gpu-zero] trying legalize_hard_macros_gpu_repulsion", flush=True)
 
+    try:
+        out = fn(placement, benchmark, max_iters=int(os.environ.get("FINAL_QUICK_GPU_MAX_ITERS", "2000")))
+
+        # legalize_hard_macros_gpu_repulsion has had multiple return shapes
+        # across our restored DREAMPlace code. Pick the tensor-like placement,
+        # not a PlacementCost/object.
+        if isinstance(out, tuple):
+            q_place = None
+            for item in out:
+                if hasattr(item, "shape") and hasattr(item, "float"):
+                    q_place = item
+                    break
+            if q_place is None:
+                raise TypeError(f"no tensor-like placement in return tuple types={[type(x).__name__ for x in out]}")
+        else:
+            q_place = out
+
+        q_costs, q_proxy, q_overlaps = score(q_place)
+        print(
+            f"[quick-gpu-zero] legalize_hard_macros_gpu_repulsion result "
+            f"proxy={q_proxy:.6f} overlaps={q_overlaps}",
+            flush=True,
+        )
+
+        if q_overlaps == 0:
+            print("[quick-gpu-zero] GPU-only zero-overlap success", flush=True)
+            return q_place, q_costs, True
+
+        print("[quick-gpu-zero] GPU-only did not reach zero; continuing to old legalizer", flush=True)
+        return placement, start_costs, False
+
+    except Exception as e:
+        print(f"[quick-gpu-zero] legalize_hard_macros_gpu_repulsion attempt failed: {e!r}", flush=True)
+        return placement, start_costs, False
 
 
 def run_old_dreamplace_final_legalizer(placement, benchmark):

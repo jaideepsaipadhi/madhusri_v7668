@@ -1,69 +1,98 @@
 #!/usr/bin/env python3
-from __future__ import annotations
-
 import json
 import sys
 from pathlib import Path
 
+# This script is run from the challenge repo root by final_placer/placer.py.
+REPO_ROOT = Path.cwd().resolve()
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 import torch
 
-from macro_place.loader import load_benchmark_from_dir
-from macro_place.objective import compute_proxy_cost
+
+def load_candidate(pt_path: Path):
+    obj = torch.load(pt_path, map_location="cpu", weights_only=False)
+
+    if isinstance(obj, dict):
+        if "placement" in obj:
+            return obj["placement"].float()
+        if "macro_positions" in obj:
+            return obj["macro_positions"].float()
+        raise RuntimeError(f"No placement tensor in {pt_path}; keys={list(obj.keys())}")
+
+    return obj.float()
 
 
-def json_safe(x):
-    try:
-        import numpy as np
-        if isinstance(x, np.generic):
-            return x.item()
-        if isinstance(x, np.ndarray):
-            return x.tolist()
-    except Exception:
-        pass
+class SavedCandidatePlacer:
+    def __init__(self, placement):
+        self.placement = placement
 
-    if isinstance(x, torch.Tensor):
-        if x.numel() == 1:
-            return x.item()
-        return x.detach().cpu().tolist()
+    def place(self, benchmark):
+        return self.placement
 
-    if isinstance(x, dict):
-        return {str(k): json_safe(v) for k, v in x.items()}
 
-    if isinstance(x, (list, tuple)):
-        return [json_safe(v) for v in x]
+def get_field(obj, *names, default=None):
+    if isinstance(obj, dict):
+        for name in names:
+            if name in obj:
+                return obj[name]
+    for name in names:
+        if hasattr(obj, name):
+            return getattr(obj, name)
+    return default
 
-    return x
+
+def scalar_costs(obj):
+    if isinstance(obj, dict):
+        items = obj.items()
+    else:
+        try:
+            items = vars(obj).items()
+        except TypeError:
+            return {}
+
+    out = {}
+    for k, v in items:
+        if isinstance(v, (int, float, str, bool)) or v is None:
+            out[k] = v
+    return out
 
 
 def main():
+    if len(sys.argv) != 4:
+        raise SystemExit("usage: score_saved_candidate.py <bench> <candidate.pt> <out.json>")
+
     bench = sys.argv[1]
-    pt = Path(sys.argv[2])
+    pt_path = Path(sys.argv[2])
     out_json = Path(sys.argv[3])
 
-    benchmark, plc = load_benchmark_from_dir(f"external/MacroPlacement/Testcases/ICCAD04/{bench}")
+    from macro_place.evaluate import evaluate_benchmark
 
-    obj = torch.load(pt, map_location="cpu", weights_only=False)
-    if isinstance(obj, dict):
-        placement = obj["placement"].float()
-    else:
-        placement = obj.float()
+    testcase_root = REPO_ROOT / "external" / "MacroPlacement" / "Testcases" / "ICCAD04"
 
-    costs = compute_proxy_cost(placement, benchmark, plc)
+    placement = load_candidate(pt_path)
+    result = evaluate_benchmark(SavedCandidatePlacer(placement), bench, str(testcase_root))
 
-    result = {
-        "pt": str(pt),
-        "proxy": float(costs["proxy_cost"]),
-        "wl": float(costs["wirelength_cost"]),
-        "den": float(costs["density_cost"]),
-        "cong": float(costs["congestion_cost"]),
-        "overlaps": int(costs.get("overlap_count", 0)),
-        "valid": int(costs.get("overlap_count", 0)) == 0,
-        "costs": json_safe(costs),
-    }
+    proxy = get_field(result, "proxy", "proxy_cost", "cost", "total_cost")
+    overlaps = get_field(result, "overlaps", "overlap_count", default=0)
+    valid = get_field(result, "valid", default=None)
+
+    if proxy is None:
+        raise RuntimeError(f"Could not extract proxy from evaluate_benchmark result={result!r}")
+
+    overlaps = int(overlaps or 0)
+    if valid is None:
+        valid = overlaps == 0
 
     out_json.parent.mkdir(parents=True, exist_ok=True)
-    out_json.write_text(json.dumps(result, indent=2))
-    print(json.dumps(result), flush=True)
+    out_json.write_text(json.dumps({
+        "pt": str(pt_path),
+        "proxy": float(proxy),
+        "valid": bool(valid),
+        "overlaps": overlaps,
+        "costs": scalar_costs(result),
+    }))
 
 
 if __name__ == "__main__":
