@@ -55,3 +55,27 @@ The important pin is:
 If installing `ncg_optimizer`, install it without letting it upgrade Torch:
 
     python -m pip install ncg_optimizer --no-deps
+
+## DREAMPlace modern CUDA/CUB build note
+
+On modern CUDA images, DREAMPlace may fail to compile because its old `utils_cub.cuh` wraps CUB inside the `DreamPlace::cub` namespace. If this happens, patch:
+
+    DREAMPlace/dreamplace/ops/utility/src/utils_cub.cuh
+
+to include CUB globally:
+
+    #include "utility/src/namespace.h"
+    #include <cub/cub.cuh>
+    #define CUB_NS_QUALIFIER cub
+
+and remove the old block:
+
+    #define CUB_NS_PREFIX namespace DREAMPLACE_NAMESPACE {
+    #define CUB_NS_POSTFIX }
+    #define CUB_NS_QUALIFIER DREAMPLACE_NAMESPACE::cub
+    #include "cub/cub.cuh"
+    #undef CUB_NS_QUALIFIER
+    #undef CUB_NS_POSTFIX
+    #undef CUB_NS_PREFIX
+
+This is a DREAMPlace build compatibility patch, not a change to the submitted placer logic.
