@@ -24,7 +24,8 @@ os.environ.setdefault("FINAL_OLD_LEGALIZER_PAIRWISE_ITERS", "10")
 os.environ.setdefault("FINAL_RUN_LNS", "1")
 os.environ.setdefault("FINAL_LNS_RUN_CONT", "0")
 os.environ.setdefault("FINAL_TIMEOUT_SEC", "3550")
-os.environ.setdefault("FINAL_LNS_MIN_TIME_REMAINING_SEC", "120")
+os.environ.setdefault("FINAL_LNS_MIN_TIME_SEC", "2000")
+os.environ.setdefault("FINAL_LNS_MIN_TIME_REMAINING_SEC", "2000")
 os.environ.setdefault("FINAL_RETURN_MARGIN_SEC", "30")
 
 import re
@@ -1971,7 +1972,7 @@ class FinalPlacer:
                 )
 
             # Optional LNS
-            lns_min_time = float(os.environ.get("FINAL_LNS_MIN_TIME_REMAINING_SEC", "120"))
+            lns_min_time = float(os.environ.get("FINAL_LNS_MIN_TIME_REMAINING_SEC", "2000"))
             return_margin = float(os.environ.get("FINAL_RETURN_MARGIN_SEC", "30"))
             time_left = deadline - time.time()
 

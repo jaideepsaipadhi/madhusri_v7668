@@ -9,10 +9,10 @@ os.environ.setdefault("FINAL_LNS_WORKERS", "12")
 os.environ.setdefault("FINAL_LNS_CHUNK_SIZE", "8")
 os.environ.setdefault("FINAL_LNS_TOP_REGION_KEEP", "2")
 os.environ.setdefault("FINAL_LNS_TOP_REGION_BY", "macros")
-os.environ.setdefault("FINAL_LNS_GPU_PREFILTER_PERCENT", "0.10")
+os.environ.setdefault("FINAL_LNS_GPU_PREFILTER_PERCENT", "0.05")
 os.environ.setdefault("FINAL_LNS_GPU_PREFILTER_TOPK", "0")
 os.environ.setdefault("FINAL_LNS_GPU_PREFILTER_BINS", "32")
-os.environ.setdefault("FINAL_LNS_LAYER1_TOP_PERCENT", "0.10")
+os.environ.setdefault("FINAL_LNS_LAYER1_TOP_PERCENT", "0.05")
 os.environ.setdefault("FINAL_LNS_LAYER1_TOPK", "0")
 os.environ.setdefault("FINAL_LNS_LAYER1_MAX_REJECTS", "10")
 os.environ.setdefault("FINAL_LNS_LAYER1_MAX_ACCEPTS", "20")
@@ -559,7 +559,7 @@ def gpu_prefilter_region_moves(benchmark, placement, region_moves, label):
     import math
     import torch
 
-    percent = float(os.environ.get("FINAL_LNS_GPU_PREFILTER_PERCENT", "0.25"))
+    percent = float(os.environ.get("FINAL_LNS_GPU_PREFILTER_PERCENT", "0.05"))
     topk = int(os.environ.get("FINAL_LNS_GPU_PREFILTER_TOPK", "0"))
     bins = int(os.environ.get("FINAL_LNS_GPU_PREFILTER_BINS", "32"))
 
@@ -1078,12 +1078,12 @@ def run_lns(bench, benchmark, plc, placement, root: Path, timeout_deadline: floa
     workers = env_int("FINAL_LNS_WORKERS", 12)
     chunk_size = env_int("FINAL_LNS_CHUNK_SIZE", 32)
 
-    layer1_top_percent = env_float("FINAL_LNS_LAYER1_TOP_PERCENT", 0.10)
+    layer1_top_percent = env_float("FINAL_LNS_LAYER1_TOP_PERCENT", 0.05)
     layer1_topk = env_int("FINAL_LNS_LAYER1_TOPK", 0)
     layer1_max_rejects = env_int("FINAL_LNS_LAYER1_MAX_REJECTS", 10)
     layer1_max_accepts = env_int("FINAL_LNS_LAYER1_MAX_ACCEPTS", 20)
 
-    cont_top_percent = env_float("FINAL_LNS_CONT_TOP_PERCENT", 0.10)
+    cont_top_percent = env_float("FINAL_LNS_CONT_TOP_PERCENT", 0.05)
     cont_topk = env_int("FINAL_LNS_CONT_TOPK", 0)
     cont_max_rejects = env_int("FINAL_LNS_CONT_MAX_REJECTS", 25)
     cont_max_accepts = env_int("FINAL_LNS_CONT_MAX_ACCEPTS", 1000)
@@ -1091,7 +1091,7 @@ def run_lns(bench, benchmark, plc, placement, root: Path, timeout_deadline: floa
     cont_hot_region_percent = env_float("FINAL_LNS_CONT_HOT_REGION_PERCENT", 0.33)
 
     cont_prefilter_topk = env_int("FINAL_LNS_CONT_PREFILTER_TOPK", 1500)
-    cont_prefilter_percent = env_float("FINAL_LNS_CONT_PREFILTER_PERCENT", 0.25)
+    cont_prefilter_percent = env_float("FINAL_LNS_CONT_PREFILTER_PERCENT", 0.05)
 
     # run_continuation_layer currently reads global args for prefilter settings.
     # Provide exactly the fields it expects, without calling argparse/main().
