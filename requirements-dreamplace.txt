@@ -5,4 +5,4 @@ networkx
 shapely
 cairocffi
 pandas
-ncg_optimizer
+torch_optimizer
