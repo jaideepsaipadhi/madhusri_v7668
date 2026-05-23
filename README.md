@@ -1,3 +1,46 @@
+**PLEASE READ THIS ABOUT THE COMMITS AFTER THE DEADLINE**
+
+The commit I am requesting for official evaluation is the pre-deadline submitted commit:
+
+`d603aa8` — Add LNS runtime gate and five percent filtering
+
+After the deadline, I made follow-up commits only to document and investigate a runtime issue with long-lived `--all` evaluation. I am not asking for those post-deadline commits to be treated as algorithmic improvements.
+
+The official evaluator command should be run from inside the challenge repository, not from this standalone submission repository, because the challenge repository contains the `macro_place` package.
+
+## Single benchmark command
+
+From inside the challenge repository:
+
+```bash
+cd /workspace/macro-place-challenge-2026
+uv run evaluate submissions/final_placer/placer.py -b ibm10
+```
+
+The benchmark name can be changed to any ICCAD04 benchmark, such as `ibm01`, `ibm02`, ..., `ibm17`, `ibm18`.
+
+## Recommended multi-benchmark invocation
+
+Run one fresh evaluator process per benchmark:
+
+```bash
+cd /workspace/macro-place-challenge-2026
+
+export PATH="$HOME/.local/bin:$PATH"
+export DREAMPLACE_ROOT=/workspace/DREAMPlace/install
+export DREAMPLACE_PYTHON=/workspace/dreamplace_env/bin/python
+export PYTHONUNBUFFERED=1
+
+for b in ibm01 ibm02 ibm03 ibm04 ibm06 ibm07 ibm08 ibm09 ibm10 ibm11 ibm12 ibm13 ibm14 ibm15 ibm16 ibm17 ibm18; do
+  echo "===== $b ====="
+  uv run evaluate submissions/final_placer/placer.py -b "$b"
+done
+```
+
+This one-process-per-benchmark invocation does not change the placer algorithm. It only avoids keeping DREAMPlace-related module/path state alive across benchmarks in a long-lived Python process.
+
+---
+
 # Post-deadline Runtime Isolation Note
 
 After the deadline, I pushed one narrow runtime-stability fix for all-benchmark evaluation mode. The fix only isolates temporary benchmark run paths when multiple benchmarks are evaluated consecutively.
