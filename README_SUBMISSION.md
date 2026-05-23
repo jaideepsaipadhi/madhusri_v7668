@@ -1,3 +1,24 @@
+# Post-deadline Runtime Isolation Note
+
+After the deadline, I pushed one narrow runtime-stability fix for all-benchmark evaluation mode. The fix only isolates temporary benchmark run paths when multiple benchmarks are evaluated consecutively.
+
+The issue: during `--all` evaluation, consecutive benchmarks could reuse stale DREAMPlace/export paths. In one test, an `ibm04` conversion attempted to read/write under an `ibm03` run root, causing a runtime path error before placement logic could complete.
+
+The fix:
+- Adds a unique process/time suffix to the temporary `/dev/shm/dreamplace_final_placer_runs/<bench>...` directory.
+- Clears stale `dreamplace_ibm/<bench>` export folders at the start of each benchmark.
+
+This does **not** change:
+- placement search parameters,
+- DREAMPlace target-density or density-weight configurations,
+- candidate scoring logic,
+- legalization logic,
+- LNS strategy,
+- final selection criteria,
+- or any benchmark-specific score optimization.
+
+It is intended only to make the submitted code run reliably in judge-style `--all` evaluation.
+
 # HRT Macro Placement Challenge Submission
 
 ## Entry point
