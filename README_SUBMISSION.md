@@ -66,7 +66,11 @@ It is intended only to make the submitted code run reliably in judge-style `--al
 
 ## Entry point
 
-    uv run evaluate submissions/final_placer/placer.py --all
+Please see the evaluation note at the top of this file. The requested evaluation commit is `d603aa8`.
+
+Single benchmark command, run from inside the challenge repository:
+
+    uv run evaluate submissions/final_placer/placer.py -b ibm10
 
 ## Main submission files
 
@@ -100,9 +104,11 @@ The DREAMPlace Python environment must include:
 
     matplotlib scipy networkx
 
-The intended evaluation command is:
+The intended single-benchmark evaluation command is:
 
-    uv run evaluate submissions/final_placer/placer.py --all
+    uv run evaluate submissions/final_placer/placer.py -b ibm10
+
+For multiple benchmarks, please run one fresh evaluator process per benchmark as described in the note at the top of this file.
 
 ## DREAMPlace dependency pin
 
