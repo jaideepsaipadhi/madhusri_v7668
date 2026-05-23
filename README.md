@@ -326,3 +326,38 @@ The organizers may update or clarify rules, evaluation details, timelines, prize
 Participation in the competition constitutes acceptance of the current rules and any subsequent updates. The organizers’ decisions regarding scoring, eligibility, and interpretation of these rules are final.
 
 Submissions & contact information may be shared with sponsors.
+
+---
+
+## Runtime Isolation Fix Diff Proof
+
+The following is the exact code diff for the post-deadline runtime isolation fix. It shows that the change only makes the temporary run directory unique and clears stale per-benchmark DREAMPlace export folders.
+
+```diff
+diff --git a/submissions/final_placer/placer.py b/submissions/final_placer/placer.py
+index f17c0e3..21a1a6f 100644
+--- a/submissions/final_placer/placer.py
++++ b/submissions/final_placer/placer.py
+@@ -1844,7 +1844,7 @@ class FinalPlacer:
+         deadline = time.time() + timeout_sec
+ 
+         root_base = Path(os.environ.get("FINAL_PLACER_ROOT", "/dev/shm/dreamplace_final_placer_runs"))
+-        root = root_base / f"{bench}_{time.strftime('%Y%m%d_%H%M%S')}"
++        root = root_base / f"{bench}_{time.strftime('%Y%m%d_%H%M%S')}_{os.getpid()}_{time.time_ns() % 1000000}"
+         root.mkdir(parents=True, exist_ok=True)
+ 
+         benchmark_root = ICCAD_ROOT / bench
+@@ -1853,6 +1853,12 @@ class FinalPlacer:
+         placer_mod = load_dreamplace_placer_module()
+ 
+         print(f"[final_placer] bench={bench}", flush=True)
++        # Defensive --all isolation: remove stale DREAMPlace export for this benchmark.
++        try:
++            import shutil
++            shutil.rmtree(Path("dreamplace_ibm") / str(bench), ignore_errors=True)
++        except Exception as e:
++            print(f"[final_placer] warning: could not clean dreamplace_ibm/{bench}: {e!r}", flush=True)
+         print(f"[final_placer] root={root}", flush=True)
+         print(f"[final_placer] timeout_sec={timeout_sec}", flush=True)
+ 
+```
