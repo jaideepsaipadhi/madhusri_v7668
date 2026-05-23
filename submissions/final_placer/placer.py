@@ -1844,7 +1844,7 @@ class FinalPlacer:
         deadline = time.time() + timeout_sec
 
         root_base = Path(os.environ.get("FINAL_PLACER_ROOT", "/dev/shm/dreamplace_final_placer_runs"))
-        root = root_base / f"{bench}_{time.strftime('%Y%m%d_%H%M%S')}"
+        root = root_base / f"{bench}_{time.strftime('%Y%m%d_%H%M%S')}_{os.getpid()}_{time.time_ns() % 1000000}"
         root.mkdir(parents=True, exist_ok=True)
 
         benchmark_root = ICCAD_ROOT / bench
@@ -1853,6 +1853,12 @@ class FinalPlacer:
         placer_mod = load_dreamplace_placer_module()
 
         print(f"[final_placer] bench={bench}", flush=True)
+        # Defensive --all isolation: remove stale DREAMPlace export for this benchmark.
+        try:
+            import shutil
+            shutil.rmtree(Path("dreamplace_ibm") / str(bench), ignore_errors=True)
+        except Exception as e:
+            print(f"[final_placer] warning: could not clean dreamplace_ibm/{bench}: {e!r}", flush=True)
         print(f"[final_placer] root={root}", flush=True)
         print(f"[final_placer] timeout_sec={timeout_sec}", flush=True)
 
